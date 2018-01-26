@@ -2,6 +2,9 @@ package edu.colorado.oit.test.spock.camel
 
 import groovy.util.logging.Slf4j
 import org.apache.camel.Endpoint
+import org.apache.camel.ProducerTemplate
+import org.apache.camel.RoutesBuilder
+import org.apache.camel.component.mock.MockEndpoint
 import org.apache.camel.component.seda.SedaComponent
 import org.apache.camel.component.seda.SedaEndpoint
 import org.apache.camel.impl.DefaultCamelContext
@@ -10,17 +13,35 @@ import org.apache.camel.util.StopWatch
 import org.apache.camel.util.TimeUtils
 import spock.lang.Specification
 
-@Slf4j
+@Slf4j("logger")
 class CamelSpecSupport extends Specification {
-    ModelCamelContext context = new DefaultCamelContext()
 
+    ModelCamelContext context = new DefaultCamelContext()
+    ProducerTemplate template
     StopWatch watch = new StopWatch()
 
+    def setup() {
+        doSetUp()
+        context.start()
+    }
+
+    def cleanup() {
+        doCleanup()
+    }
+
+    RoutesBuilder[] createRouteBuilders() {
+        return []
+    }
+
+    MockEndpoint getMockEndpoint(String uri) {
+        return context.hasEndpoint(uri)
+    }
+
     protected void doSetUp() throws Exception {
-        log.info("********************************************************************************")
-        log.info("Testing: " + specificationContext.currentIteration.name + "(" + this.class.name + ")")
-        log.info("********************************************************************************")
-        log.debug("setUp test")
+        logger.info("********************************************************************************")
+        logger.info("Testing: " + specificationContext.currentIteration.name + "(" + this.class.name + ")")
+        logger.info("********************************************************************************")
+        logger.debug("setUp test")
 
         context = new DefaultCamelContext()
 
@@ -37,21 +58,26 @@ class CamelSpecSupport extends Specification {
                 ((SedaEndpoint)endpoint).pollTimeout = 1
             }
         })
+        template = context.createProducerTemplate()
+
+        createRouteBuilders().each {
+            context.addRoutes(it)
+        }
 
         // only start timing after all the setup
         watch.restart()
     }
 
-
-    def cleanup() throws Exception {
+    protected void doCleanup() throws Exception {
+        template.stop()
         long time = watch.taken()
 
-        log.info("********************************************************************************")
-        log.info("Testing done: " + specificationContext.currentIteration.name + "(" + this.class.name + ")")
-        log.info("Took: " + TimeUtils.printDuration(time) + " (" + time + " millis)")
-        log.info("********************************************************************************")
+        logger.info("********************************************************************************")
+        logger.info("Testing done: " + specificationContext.currentIteration.name + "(" + this.class.name + ")")
+        logger.info("Took: " + TimeUtils.printDuration(time) + " (" + time + " millis)")
+        logger.info("********************************************************************************")
 
-        log.debug("tearDown test")
+        logger.debug("tearDown test")
         context.stop()
     }
 }
